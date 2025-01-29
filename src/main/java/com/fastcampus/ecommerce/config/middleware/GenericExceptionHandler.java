@@ -2,9 +2,14 @@ package com.fastcampus.ecommerce.config.middleware;
 
 import com.fastcampus.ecommerce.common.errors.*;
 import com.fastcampus.ecommerce.model.ErrorResponse;
+import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.AccountStatusException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.InsufficientAuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -12,6 +17,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
+import javax.naming.AuthenticationException;
+import java.nio.file.AccessDeniedException;
+import java.security.SignatureException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -46,8 +54,25 @@ public class GenericExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public @ResponseBody ErrorResponse handleGenericException(HttpServletRequest req, Exception exception) {
+    public @ResponseBody ErrorResponse handleGenericException(HttpServletRequest req, HttpServletResponse resp, Exception exception) {
         log.error("Terjadi error. status code: " + HttpStatus.INTERNAL_SERVER_ERROR + " error message: " + exception.getMessage());
+        if (exception instanceof BadCredentialsException ||
+        exception instanceof AccountStatusException ||
+        exception instanceof AccessDeniedException ||
+        exception instanceof SignatureException ||
+        exception instanceof ExpiredJwtException ||
+        exception instanceof AuthenticationException ||
+        exception instanceof InsufficientAuthenticationException) {
+
+            resp.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            return ErrorResponse.builder()
+                    .code(HttpStatus.FORBIDDEN.value())
+                    .message(exception.getMessage())
+                    .timestamp(LocalDateTime.now())
+                    .build();
+
+        }
+        resp.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         return ErrorResponse.builder()
                 .code(HttpStatus.INTERNAL_SERVER_ERROR.value())
                 .message(exception.getMessage())
@@ -89,6 +114,17 @@ public class GenericExceptionHandler {
     public @ResponseBody ErrorResponse handleConflictException(HttpServletRequest req, Exception exception) {
         return ErrorResponse.builder()
                 .code(HttpStatus.CONFLICT.value())
+                .message(exception.getMessage())
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
+
+    @ExceptionHandler(ForbiddenAccessException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public @ResponseBody ErrorResponse handleForbiddenException(HttpServletRequest req,
+                                                                Exception exception) {
+        return ErrorResponse.builder()
+                .code(HttpStatus.FORBIDDEN.value())
                 .message(exception.getMessage())
                 .timestamp(LocalDateTime.now())
                 .build();
