@@ -1,13 +1,11 @@
 package com.fastcampus.ecommerce.service;
 
+import com.fastcampus.ecommerce.common.OrderStateTransition;
 import com.fastcampus.ecommerce.common.errors.ResourceNotFoundException;
 import com.fastcampus.ecommerce.entity.Order;
 import com.fastcampus.ecommerce.entity.OrderItem;
 import com.fastcampus.ecommerce.entity.Product;
-import com.fastcampus.ecommerce.model.ShippingOrderRequest;
-import com.fastcampus.ecommerce.model.ShippingOrderResponse;
-import com.fastcampus.ecommerce.model.ShippingRateRequest;
-import com.fastcampus.ecommerce.model.ShippingRateResponse;
+import com.fastcampus.ecommerce.model.*;
 import com.fastcampus.ecommerce.repository.OrderItemRepository;
 import com.fastcampus.ecommerce.repository.OrderRepository;
 import com.fastcampus.ecommerce.repository.ProductRepository;
@@ -33,8 +31,8 @@ public class MockShippingServiceImpl implements ShippingService {
     @Override
     public ShippingRateResponse calculateShippingRate(ShippingRateRequest request) {
         // shipping_fee = base_rate + (weight * rate per kg);
-        BigDecimal shippingFee = BASE_RATE.add(request.getTotalWeightInGrams().divide(BigDecimal.valueOf(1000)))
-                .multiply(RATE_PER_KG).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal shippingFee = BASE_RATE.add(request.getTotalWeightInGrams().divide(BigDecimal.valueOf(1000)).multiply(RATE_PER_KG))
+                .setScale(2, RoundingMode.HALF_UP);
 
         String estimatedDeliveryFee = "3 - 5 hari kerja";
         return ShippingRateResponse.builder()
@@ -50,7 +48,11 @@ public class MockShippingServiceImpl implements ShippingService {
         Order order = orderRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new ResourceNotFoundException("Order with id " + request.getOrderId() + " not found"));
 
-        order.setStatus("SHIPPING");
+        if (!OrderStateTransition.isValidTransition(order.getStatus(), OrderStatus.SHIPPED)) {
+            throw new IllegalStateException("Invalid order status transition from " + order.getStatus() + " to SHIPPED");
+        }
+
+        order.setStatus(OrderStatus.SHIPPED);
         order.setAwbNumber(awbNumber);
         orderRepository.save(order);
 

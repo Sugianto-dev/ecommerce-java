@@ -27,6 +27,9 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final String USER_CACHE_KEY = "cache:user:";
+    private final String USER_ROLES_CACHE_KEY = "cache:user:roles:";
+    private final CacheService cacheService;
 
     @Override
     @Transactional
@@ -115,8 +118,12 @@ public class UserServiceImpl implements UserService {
             user.setEmail(request.getEmail());
         }
 
+        String userKey = USER_CACHE_KEY + user.getUsername();
+        String roleKey = USER_ROLES_CACHE_KEY + user.getUsername();
         userRepository.save(user);
         List<Role> roles = roleRepository.findByUserId(user.getUserId());
+        cacheService.evict(userKey); // Delete redis cache
+        cacheService.evict(roleKey); // Delete redis cache
         return UserResponse.fromUserAndRoles(user, roles);
     }
 

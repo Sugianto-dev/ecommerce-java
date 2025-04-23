@@ -29,17 +29,21 @@ public class ApiSecurityConfiguration {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(registry -> {
-                    registry.requestMatchers("/auth/**", "/api-docs/**", "/swagger-ui/**")
-                            .permitAll().anyRequest().authenticated();
+                    registry.requestMatchers("/auth/**", "/api-docs/**", "/swagger-ui/**", "/webhook/xendit")
+                            .permitAll()
+                            .requestMatchers("/admin/**").hasAuthority("ROLE_ADMIN")
+                            .anyRequest().authenticated();
                 }).sessionManagement(configurer -> {
                     configurer.sessionCreationPolicy(SessionCreationPolicy.STATELESS);
                 }).authenticationProvider(authenticationProvider)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .exceptionHandling(configurer -> configurer.authenticationEntryPoint(
-                        (request, response, authException) -> {
+                .exceptionHandling(configurer ->
+                        configurer.authenticationEntryPoint((request, response, authException) -> {
                             throw authException;
-                        }
-                ))
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            throw accessDeniedException;
+                        }))
                 .build();
     }
 

@@ -2,6 +2,7 @@ package com.fastcampus.ecommerce.service;
 
 import com.fastcampus.ecommerce.common.errors.BadRequestException;
 import com.fastcampus.ecommerce.common.errors.ForbiddenAccessException;
+import com.fastcampus.ecommerce.common.errors.InventoryException;
 import com.fastcampus.ecommerce.common.errors.ResourceNotFoundException;
 import com.fastcampus.ecommerce.entity.Cart;
 import com.fastcampus.ecommerce.entity.CartItem;
@@ -42,11 +43,15 @@ public class CartServiceImpl implements CartService {
                     return cartRepository.save(newCart);
                 });
 
-        Product product = productRepository.findById(productId)
+        Product product = productRepository.findByIdWithPessimisticLock(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product with id " + productId + " is not found"));
 
         if (product.getUserId().equals(userId)) {
             throw new BadRequestException("Cannot add your own product to cart");
+        }
+
+        if (product.getStockQuantity() <= 0) {
+            throw new InventoryException("Product stock is equal or below zero");
         }
 
         Optional<CartItem> existingItemOpt = cartItemRepository.findByCartIdAndProductId(cart.getCartId(), productId);
