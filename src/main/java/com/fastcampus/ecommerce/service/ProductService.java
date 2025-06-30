@@ -1,5 +1,6 @@
 package com.fastcampus.ecommerce.service;
 
+import com.fastcampus.ecommerce.entity.Product;
 import com.fastcampus.ecommerce.model.PaginatedProductResponse;
 import com.fastcampus.ecommerce.model.ProductRequest;
 import com.fastcampus.ecommerce.model.ProductResponse;
@@ -7,7 +8,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import java.util.List;
-import java.util.Optional;
 
 public interface ProductService {
 
@@ -26,5 +26,7 @@ public interface ProductService {
     void delete(Long id);
 
     PaginatedProductResponse convertProductPage(Page<ProductResponse> responses);
+
+    Product get(Long id);
 
 }

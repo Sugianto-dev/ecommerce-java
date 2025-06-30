@@ -2,20 +2,24 @@ package com.fastcampus.ecommerce.service;
 
 import com.fastcampus.ecommerce.common.errors.ResourceNotFoundException;
 import com.fastcampus.ecommerce.entity.Order;
+import com.fastcampus.ecommerce.entity.OrderItem;
 import com.fastcampus.ecommerce.entity.User;
 import com.fastcampus.ecommerce.model.OrderStatus;
 import com.fastcampus.ecommerce.model.PaymentNotification;
 import com.fastcampus.ecommerce.model.PaymentResponse;
+import com.fastcampus.ecommerce.repository.OrderItemRepository;
 import com.fastcampus.ecommerce.repository.OrderRepository;
 import com.fastcampus.ecommerce.repository.UserRepository;
 import com.xendit.exception.XenditException;
 import com.xendit.model.Invoice;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -25,6 +29,8 @@ public class XenditPaymentService implements PaymentService {
     private final UserRepository userRepository;
     private final OrderRepository orderRepository;
     private final EmailService emailService;
+    private final UserActivityService userActivityService;
+    private final OrderItemRepository orderItemRepository;
 
     @Override
     public PaymentResponse create(Order order) {
@@ -90,6 +96,7 @@ public class XenditPaymentService implements PaymentService {
             case "PAID":
                 order.setStatus(OrderStatus.PAID);
                 emailService.notifySuccessfulPayment(order); // Dibuat async agar webhook handleNotification tidak menunggu ketika retry
+                trackPurchasedOrder(order); // Track user activity product purchase
                 break;
             case "EXPIRED":
                 order.setStatus(OrderStatus.CANCELLED);
@@ -111,5 +118,13 @@ public class XenditPaymentService implements PaymentService {
         }
 
         orderRepository.save(order);
+    }
+
+    @Async
+    private void trackPurchasedOrder(Order order) {
+        List<OrderItem> orderItemList = orderItemRepository.findByOrderId(order.getOrderId());
+        orderItemList.forEach(orderItem -> {
+            userActivityService.trackPurchase(orderItem.getProductId(), order.getUserId());
+        });
     }
 }

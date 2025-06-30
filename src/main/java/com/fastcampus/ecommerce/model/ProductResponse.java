@@ -27,6 +27,7 @@ public class ProductResponse {
     private BigDecimal weight;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private Long userId;
     private List<CategoryResponse> categories;
 
     public static ProductResponse fromProductAndCategories(Product product, List<CategoryResponse> categories) {
@@ -39,6 +40,7 @@ public class ProductResponse {
                 .weight(product.getWeight())
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
+                .userId(product.getUserId())
                 .categories(categories)
                 .build();
     }

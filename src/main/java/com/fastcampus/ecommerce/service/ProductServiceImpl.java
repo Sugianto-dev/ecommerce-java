@@ -5,10 +5,7 @@ import com.fastcampus.ecommerce.entity.Category;
 import com.fastcampus.ecommerce.entity.Product;
 import com.fastcampus.ecommerce.entity.ProductCategory;
 import com.fastcampus.ecommerce.entity.ProductCategory.ProductCategoryId;
-import com.fastcampus.ecommerce.model.CategoryResponse;
-import com.fastcampus.ecommerce.model.PaginatedProductResponse;
-import com.fastcampus.ecommerce.model.ProductRequest;
-import com.fastcampus.ecommerce.model.ProductResponse;
+import com.fastcampus.ecommerce.model.*;
 import com.fastcampus.ecommerce.repository.CategoryRepository;
 import com.fastcampus.ecommerce.repository.ProductCategoryRepository;
 import com.fastcampus.ecommerce.repository.ProductRepository;
@@ -32,6 +29,8 @@ public class ProductServiceImpl implements ProductService {
     private final String PRODUCT_CACHE_KEY = "products:";
     private final CacheService cacheService;
     private final RateLimitingService rateLimitingService;
+    private final ProductIndexService productIndexService;
+    private final ProductReindexProducer productReindexProducer;
 
     @Override
     public List<ProductResponse> findAll() {
@@ -113,6 +112,16 @@ public class ProductServiceImpl implements ProductService {
         String cacheKey = PRODUCT_CACHE_KEY + createdProduct.getProductId();
         ProductResponse productResponse = ProductResponse.fromProductAndCategories(createdProduct, categoryResponseList);
         cacheService.put(cacheKey, productResponse); // Save redis cache
+
+        // Reindex elasticsearch
+//        productIndexService.reindexProduct(product);
+
+        // Reindex elasticsearch dengan kafka
+        productReindexProducer.publishProductReindex(ProductReindex.builder()
+                        .action("REINDEX")
+                        .productId(product.getProductId())
+                .build());
+
         return productResponse;
     }
 
@@ -152,6 +161,16 @@ public class ProductServiceImpl implements ProductService {
 
         String cacheKey = PRODUCT_CACHE_KEY + productId;
         cacheService.evict(cacheKey); // Delete redis cache
+
+        // Reindex elasticsearch
+//        productIndexService.reindexProduct(existingProduct);
+
+        // Reindex elasticsearch dengan kafka
+        productReindexProducer.publishProductReindex(ProductReindex.builder()
+                .action("REINDEX")
+                .productId(existingProduct.getProductId())
+                .build());
+
         return ProductResponse.fromProductAndCategories(existingProduct, categoryResponseList);
     }
 
@@ -163,6 +182,16 @@ public class ProductServiceImpl implements ProductService {
         List<ProductCategory> productCategories = productCategoryRepository.findCategoriesByProductId(productId);
 
         productCategoryRepository.deleteAll(productCategories);
+
+        // Delete elasticsearch
+//        productIndexService.deleteProduct(existingProduct);
+
+        // Reindex elasticsearch dengan kafka
+        productReindexProducer.publishProductReindex(ProductReindex.builder()
+                .action("DELETE")
+                .productId(existingProduct.getProductId())
+                .build());
+
         productRepository.delete(existingProduct);
     }
 
@@ -176,6 +205,12 @@ public class ProductServiceImpl implements ProductService {
                 .totalPages(productPage.getTotalPages())
                 .last(productPage.isLast())
                 .build();
+    }
+
+    @Override
+    public Product get(Long id) {
+        return productRepository.findById(id)
+                .orElse(null);
     }
 
     private List<Category> getCategoriesByIds(List<Long> categoryIds) {
