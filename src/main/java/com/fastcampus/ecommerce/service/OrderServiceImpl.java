@@ -8,6 +8,9 @@ import com.fastcampus.ecommerce.model.*;
 import com.fastcampus.ecommerce.repository.*;
 import com.xendit.exception.XenditException;
 import com.xendit.model.Invoice;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -39,6 +42,10 @@ public class OrderServiceImpl implements OrderService {
     private final InventoryService inventoryService;
 
     private final BigDecimal TAX_RATE = BigDecimal.valueOf(0.03);
+
+    private final MeterRegistry meterRegistry;
+    private Counter checkoutCounter;
+    private DistributionSummary orderValueSummary;
 
     @Override
     @Transactional
@@ -145,6 +152,24 @@ public class OrderServiceImpl implements OrderService {
 
         OrderResponse orderResponse = OrderResponse.fromOrder(savedOrder);
         orderResponse.setPaymentUrl(paymentUrl);
+
+        // Implement custom metrics grafana
+        if (checkoutCounter == null) {
+            checkoutCounter = Counter.builder("checkout.count")
+                    .description("Number of checkout operations")
+                    .register(meterRegistry);
+        }
+
+        if (orderValueSummary == null) {
+            orderValueSummary = DistributionSummary.builder("order.value")
+                    .description("Order value in rupiah")
+                    .baseUnit("Rupiah")
+                    .register(meterRegistry);
+        }
+
+        checkoutCounter.increment();
+        orderValueSummary.record(totalAmount.doubleValue());
+
         return orderResponse;
     }
 

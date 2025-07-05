@@ -11,6 +11,8 @@ import com.fastcampus.ecommerce.model.CartItemResponse;
 import com.fastcampus.ecommerce.repository.CartItemRepository;
 import com.fastcampus.ecommerce.repository.CartRepository;
 import com.fastcampus.ecommerce.repository.ProductRepository;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,8 @@ public class CartServiceImpl implements CartService {
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
+    private final MeterRegistry meterRegistry;
+    private Gauge cartItemGauge;
 
     @Override
     @Transactional
@@ -70,6 +74,11 @@ public class CartServiceImpl implements CartService {
 
             cartItemRepository.save(newItem);
         }
+
+        // Implement custom metrics grafana
+        Gauge.builder("cart_items", this, value -> value.getCartItems(userId).size())
+                .description("Number of items in cart")
+                .register(meterRegistry);
     }
 
     @Override
@@ -91,6 +100,11 @@ public class CartServiceImpl implements CartService {
             item.setQuantity(quantity);
             cartItemRepository.save(item);
         }
+
+        // Implement custom metrics grafana
+        Gauge.builder("cart_items", this, value -> value.getCartItems(userId).size())
+                .description("Number of items in cart")
+                .register(meterRegistry);
     }
 
     @Override
@@ -112,6 +126,11 @@ public class CartServiceImpl implements CartService {
         }
 
         cartItemRepository.deleteById(cartItemId);
+
+        // Implement custom metrics grafana
+        Gauge.builder("cart_items", this, value -> value.getCartItems(userId).size())
+                .description("Number of items in cart")
+                .register(meterRegistry);
     }
 
     @Override
@@ -121,6 +140,11 @@ public class CartServiceImpl implements CartService {
                 .orElseThrow(() -> new ResourceNotFoundException("Cart not found for user with id " + userId));
 
         cartItemRepository.deleteAllByCartId(cart.getCartId());
+
+        // Implement custom metrics grafana
+        Gauge.builder("cart_items", this, value -> value.getCartItems(userId).size())
+                .description("Number of items in cart")
+                .register(meterRegistry);
     }
 
     @Override
@@ -139,7 +163,7 @@ public class CartServiceImpl implements CartService {
         Map<Long, Product> productMap = products.stream()
                 .collect(Collectors.toMap(Product::getProductId, Function.identity()));
 
-        return cartItems.stream()
+        List<CartItemResponse> cartItemResponses = cartItems.stream()
                 .map(cartItem -> {
                     Product product = productMap.get(cartItem.getProductId());
                     if (product == null) {
@@ -147,5 +171,7 @@ public class CartServiceImpl implements CartService {
                     }
                     return CartItemResponse.fromCartItemAndProduct(cartItem, product);
                 }).toList();
+
+        return cartItemResponses;
     }
 }
